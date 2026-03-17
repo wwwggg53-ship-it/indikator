@@ -1,0 +1,131 @@
+name: Update Coefficients
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # каждые 5 минут
+  workflow_dispatch:        # ручной запуск
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Yandex API and update points
+        env:
+          YANDEX_TOKEN: ${{ secrets.YANDEX_API_TOKEN }}
+          CRON_SECRET:  ${{ secrets.CRON_SECRET }}
+          API_URL:      ${{ secrets.API_URL }}
+        run: |
+          python3 << 'EOF'
+          import json, os, urllib.request, urllib.error
+
+          YANDEX_URL = "https://b2b.taxi.yandex.net/b2b/cargo/integration/v2/offers/calculate"
+          TOKEN      = os.environ["YANDEX_TOKEN"]
+          SECRET     = os.environ["CRON_SECRET"]
+          API_URL    = os.environ["API_URL"]  # https://indikator.ikf-kursk.ru/api/update_points.php
+
+          OFFSET     = 0.54
+          MULTIPLIER = 90
+          SUBTRACT   = 90
+
+          # Все точки: {point_id, city, start_coords, end_coords}
+          POINTS = [
+            {"id":1,  "city":"Курск",     "start":"51.726875,36.185927",  "end":"51.726875,36.185928"},
+            {"id":2,  "city":"Курск",     "start":"51.732687,36.192458",  "end":"51.732687,36.192459"},
+            {"id":3,  "city":"Курск",     "start":"51.725859,36.175130",  "end":"51.725859,36.175131"},
+            {"id":4,  "city":"Курск",     "start":"51.749300,36.192001",  "end":"51.749300,36.192002"},
+            {"id":5,  "city":"Курск",     "start":"51.740947,36.144344",  "end":"51.740947,36.144345"},
+            {"id":6,  "city":"Курск",     "start":"51.762129,36.184553",  "end":"51.762129,36.184554"},
+            {"id":7,  "city":"Курск",     "start":"51.755194,36.221842",  "end":"51.755194,36.221843"},
+            {"id":8,  "city":"Курск",     "start":"51.710716,36.141820",  "end":"51.710716,36.141821"},
+            {"id":9,  "city":"Курск",     "start":"51.721887,36.134499",  "end":"51.721887,36.134498"},
+            {"id":10, "city":"Курск",     "start":"51.699237,36.157036",  "end":"51.699237,36.157037"},
+            {"id":11, "city":"Курск",     "start":"51.772251,36.178992",  "end":"51.772251,36.178993"},
+            {"id":12, "city":"Курск",     "start":"51.664484,36.138992",  "end":"51.664484,36.138993"},
+            {"id":13, "city":"Курск",     "start":"51.668272,36.082396",  "end":"51.668272,36.082397"},
+            {"id":14, "city":"Курск",     "start":"51.804864,36.162693",  "end":"51.804864,36.162694"},
+            {"id":15, "city":"Орел",      "start":"52.967491,36.074509",  "end":"52.967491,36.074510"},
+            {"id":16, "city":"Орел",      "start":"52.971363,36.086762",  "end":"52.971363,36.086763"},
+            {"id":17, "city":"Орел",      "start":"52.978732,36.104782",  "end":"52.978732,36.104783"},
+            {"id":18, "city":"Орел",      "start":"52.959425,36.065499",  "end":"52.959425,36.065498"},
+            {"id":19, "city":"Орел",      "start":"52.953431,36.061996",  "end":"52.953431,36.061997"},
+            {"id":20, "city":"Орел",      "start":"52.941884,36.048952",  "end":"52.941884,36.048953"},
+            {"id":21, "city":"Орел",      "start":"52.925585,36.019748",  "end":"52.925585,36.019749"},
+            {"id":22, "city":"Орел",      "start":"52.921600,36.010450",  "end":"52.921600,36.010451"},
+            {"id":23, "city":"Орел",      "start":"52.971710,36.048180",  "end":"52.971710,36.048181"},
+            {"id":24, "city":"Орел",      "start":"52.985455,36.057307",  "end":"52.985455,36.057308"},
+            {"id":25, "city":"Орел",      "start":"53.002014,36.105088",  "end":"53.002014,36.105089"},
+            {"id":26, "city":"Орел",      "start":"53.016638,36.161287",  "end":"53.016638,36.161288"},
+            {"id":27, "city":"Краснодар", "start":"45.035470,38.970786",  "end":"45.035470,38.970787"},
+            {"id":28, "city":"Краснодар", "start":"45.030196,38.962952",  "end":"45.030196,38.962953"},
+            {"id":29, "city":"Краснодар", "start":"45.020933,38.974900",  "end":"45.020933,38.974901"},
+            {"id":30, "city":"Краснодар", "start":"45.015180,38.970076",  "end":"45.015180,38.970077"},
+            {"id":31, "city":"Краснодар", "start":"45.054907,38.934449",  "end":"45.054907,38.934448"},
+            {"id":32, "city":"Краснодар", "start":"45.058078,38.982670",  "end":"45.058078,38.982671"},
+            {"id":33, "city":"Краснодар", "start":"45.046960,39.007742",  "end":"45.046960,39.007743"},
+            {"id":34, "city":"Краснодар", "start":"45.058135,38.999577",  "end":"45.058135,38.999578"},
+            {"id":35, "city":"Краснодар", "start":"45.046686,39.031835",  "end":"45.046686,39.031836"},
+            {"id":36, "city":"Краснодар", "start":"45.102926,38.983432",  "end":"45.102926,38.983433"},
+          ]
+
+          def swap(coords):
+              lat, lon = coords.split(',')
+              return [float(lon.strip()), float(lat.strip())]
+
+          def calc(surge):
+              c = (surge - OFFSET) * MULTIPLIER - SUBTRACT
+              return max(0, round(c))
+
+          def get_surge(point):
+              body = {
+                  "route_points": [
+                      {"id": 1, "coordinates": swap(point["start"]), "fullname": point["city"]},
+                      {"id": 2, "coordinates": swap(point["end"]),   "fullname": point["city"]},
+                  ],
+                  "items": [{"pickup_point":1,"dropoff_point":2,"quantity":1,"weight":1.0,
+                              "size":{"length":0.1,"width":0.1,"height":0.1}}],
+                  "requirements": {"taxi_classes": ["express"]},
+              }
+              req = urllib.request.Request(
+                  YANDEX_URL,
+                  data=json.dumps(body).encode(),
+                  headers={
+                      "Authorization": f"Bearer {TOKEN}",
+                      "Content-Type": "application/json",
+                      "Accept-Language": "ru",
+                  }
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      data = json.loads(r.read())
+                      for offer in data.get("offers", []):
+                          surge = offer.get("price", {}).get("surge_ratio")
+                          if surge:
+                              return float(surge)
+              except Exception as e:
+                  print(f"  Error point {point['id']}: {e}")
+              return None
+
+          results = []
+          for pt in POINTS:
+              surge = get_surge(pt)
+              if surge is not None:
+                  coeff = calc(surge)
+                  results.append({"point_id": pt["id"], "surge_ratio": surge, "coefficient": coeff})
+                  print(f"  ✅ point {pt['id']} ({pt['city']}): surge={surge} coeff={coeff}")
+              else:
+                  print(f"  ❌ point {pt['id']} ({pt['city']}): no data")
+
+          if not results:
+              print("No results, skipping update")
+              exit(0)
+
+          payload = json.dumps({"points": results}).encode()
+          req = urllib.request.Request(
+              API_URL,
+              data=payload,
+              headers={"Content-Type": "application/json", "X-Secret": SECRET}
+          )
+          with urllib.request.urlopen(req, timeout=15) as r:
+              resp = json.loads(r.read())
+              print(f"DB updated: {resp}")
+          EOF
